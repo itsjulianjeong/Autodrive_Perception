@@ -1,6 +1,7 @@
 import os
 import cv2
 import argparse
+
 # 동영상 io 처리 모듈
 from src.video.video_io import open_video, get_video_props, create_writer
 from src.pipeline import process_frame
@@ -15,6 +16,9 @@ def parse_args():
     # 입력받을 인자값
     parser.add_argument("--show", type=int, default=1)  # 1이면 화면에 표시
     parser.add_argument("--save", type=int, default=0)  # 1이면 결과 영상 저장
+    
+    # "," 구분자 사용
+    parser.add_argument("--targets", type=str, default="car,person,truck,bus,traffic light")
     
     return parser.parse_args()
 
@@ -41,16 +45,19 @@ def main():
     나중에 if writer is not None: 으로 분기함
     """
     # writer None으로 초기화
-    writer=None  
+    writer=None
     
     # --save 1
     if args.save==1:
         os.makedirs(os.path.dirname(OUTPUT_DIR), exist_ok=True)
         writer=create_writer(OUTPUT_DIR,W,H,FPS)
+    
+    targets=[t.strip() for t in args.targets.split(",") if t.strip()]
 
     print("========== 영상 처리 시작 ==========")
     print(f"해상도: {W}x{H}")
     print(f"FPS: {FPS:.2f}")
+    print(f"Targets: {targets}")
 
     while True:
         # 비디오의 한 프레임씩 읽기.
@@ -59,7 +66,7 @@ def main():
         if not is_read: break
 
         # 후에 코드 추가 예정
-        frame=process_frame(frame)
+        frame=process_frame(frame, targets=targets)
 
         # --show 1
         if args.show==1:

@@ -19,6 +19,36 @@ class YoloDetector:
             "traffic light" # 9
         }
     
+    def sanitize_and_filter_box(self, x1, y1, x2, y2, W, H):
+        # 좌표 정리(혹시라도 순서 뒤집힌 경우 방지)
+        x1,x2=sorted([int(x1), int(x2)])
+        y1,y2=sorted([int(y1), int(y2)])
+
+        # 프레임 밖으로 나가면 클램핑
+        x1=max(0, min(W-1, x1))
+        y1=max(0, min(H-1, y1))
+        x2=max(0, min(W-1, x2))
+        y2=max(0, min(H-1, y2))
+
+        w=x2-x1
+        h=y2-y1
+        if w<12 or h<12:
+            return None
+
+        area=w*h
+        area_ratio=area/(W*H)
+
+        # 너무 큰 박스(도로/건물 오탐) 제거
+        if area_ratio>0.35:
+            return None
+
+        # 너무 긴/납작한 박스(도로/가로로 긴 구조물 오탐) 제거
+        aspect=w/(h+1e-6)
+        if aspect>6.0:
+            return None
+
+        return [x1,y1,x2,y2]
+    
     def detect(self, frame, target_names=None):  
         """
         return:
@@ -47,6 +77,7 @@ class YoloDetector:
         .cpu(): GPU에 있으면 CPU로 가져오기
         .numpy(): numpy 배열로 변환해서 for문에 사용하기 좋도록
         """
+        H,W=frame.shape[:2]
         boxes_xyxy=r.boxes.xyxy.cpu().numpy()  # 박스 좌표 (x1,y1,x2,y2 좌표)
         conf_scores=r.boxes.conf.cpu().numpy()  # confidence 점수
         class_ids=r.boxes.cls.cpu().numpy().astype(int)  # class id
@@ -62,8 +93,13 @@ class YoloDetector:
             if target_names is not None and name not in target_names:
                 continue
             
+            x1,y1,x2,y2=box_xyxy
+            cleaned_box_xyxy=self.sanitize_and_filter_box(x1,y1,x2,y2,W,H)
+            if cleaned_box_xyxy is None:
+                continue
+            
             detections.append({
-                "xyxy": [int(box_xyxy[0]), int(box_xyxy[1]), int(box_xyxy[2]), int(box_xyxy[3])],
+                "xyxy": cleaned_box_xyxy,
                 "conf": float(conf_score),
                 "cls": int(class_id),
                 "name": name
